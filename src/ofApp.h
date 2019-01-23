@@ -23,7 +23,8 @@ public:
 
 
 private:
-    bool setFace();
+    bool setFace(vector<glm::vec2> &pointsCoord);
+    ofVboMesh remakeFaceMesh(ofxFaceTracker2Instance &face);
 
     ofxFaceTracker2 camTracker,srcTracker;
     ofVideoGrabber grabber;
@@ -32,7 +33,7 @@ private:
     ofShader maskShader;
     ofPolyline mouth;
 
-    vector<ofVec2f> srcPointsCoord;
+    vector<glm::vec2> srcPointsCoord;
     float alpha;
 };
 

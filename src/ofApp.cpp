@@ -25,7 +25,8 @@ void ofApp::setup(){
     camTracker.setup();
     srcTracker.setup();
 
-    src.load("obama.jpg");
+    string srcPath = "obama.jpg";
+    src.load(srcPath);
     if(src.isAllocated()){
         srcTracker.update(ofxCv::toCv(src));
     }
@@ -45,7 +46,10 @@ void ofApp::setup(){
 
     alpha = 110;
 
-    if(!setFace()) std::exit(0);
+    if(!setFace(srcPointsCoord)){
+        ofSystemAlertDialog("failed to find face from \n" + srcPath);
+        std::exit(0);
+    }
 }
 
 //--------------------------------------------------------------
@@ -57,40 +61,9 @@ void ofApp::update(){
 
     //--- Camera ---//
     if(camTracker.size()){
-        ofxFaceTracker2Instance camFace = camTracker.getInstances()[0];
-        ofMesh camMesh = camFace.getLandmarks().getImageMesh();
-        //--- set Good TexCoord to camMesh
-        vector<ofVec2f> points = camFace.getLandmarks().getImagePoints();
-        unordered_map<string, int> index_map;
-        int index = 0;
-        //=== original source ===
-        //=== reffered from https://github.com/HalfdanJ/ofxFaceTracker2/issues/25
-//        for(std::vector<ofVec2f>::iterator it = points.begin(); it != points.end(); ++it){
-//            Coord c = {it->x,it->y};
-//            index_map[c] = index;
-//            ++index;
-//        }
-        //=== my source ===
-        for(const auto &p : points){
-            string key = to_string(p.x) +","+ to_string(p.y);
-            index_map[key] = index;
-            index++;
-        }
+        auto camFace = camTracker.getInstances()[0];
 
-        camMesh.clearTexCoords();
-        //=== original source ===
-        vector<ofVec3f> vertices = camMesh.getVertices();
-//        for(vector<ofVec3f>::iterator it = vertices.begin(); it != vertices.end(); it++){
-//            Coord c = {it->x,it->y};
-//            unordered_map<Coord, int, Hash>::iterator i = index_map.find(c);
-//            assert(i != index_map.end());
-//            camMesh.addTexCoord(pointsPos[i->second]);
-//        }
-        //=== my source ===
-        for(const auto &v : vertices){
-            string key = to_string(v.x) +","+ to_string(v.y);
-            camMesh.addTexCoord(srcPointsCoord[index_map[key]]);
-        }
+        ofVboMesh camMesh = remakeFaceMesh(camFace);
 
         faceFbo.begin();
         ofClear(0);
@@ -172,7 +145,8 @@ void ofApp::draw(){
 }
 
 //--------------------------------------------------------------
-bool ofApp::setFace(){
+bool ofApp::setFace(vector<glm::vec2> &pointsCoord){
+    int t = ofGetElapsedTimeMicros();
     while(!srcTracker.size()){
         static float t = ofGetElapsedTimef();
         if(src.isAllocated()) srcTracker.update(ofxCv::toCv(src));
@@ -181,26 +155,35 @@ bool ofApp::setFace(){
             return 0;
         }
     }
-
     ofxFaceTracker2Instance face = srcTracker.getInstances()[0];
-    srcPointsCoord = face.getLandmarks().getImagePoints();
-    ofMesh srcMesh;
-    srcMesh = face.getLandmarks().getImageMesh();
-    srcMesh.setupIndicesAuto();
+    pointsCoord = face.getLandmarks().getImagePoints();
 
+    ofLogNotice("setFace") << ((ofGetElapsedTimeMicros() - t)*0.000001) <<"s";
+    return 1;
+}
+
+//--------------------------------------------------------------
+ofVboMesh ofApp::remakeFaceMesh(ofxFaceTracker2Instance &face){
+
+    vector<glm::vec2> points;
+    for(auto &v:face.getLandmarks().getImagePoints()) points.push_back(v);
+
+    //[*] reffered from https://github.com/HalfdanJ/ofxFaceTracker2/issues/25
     unordered_map<string, int> index_map;
     int index = 0;
-    for(const auto &p :srcPointsCoord){
+    for(const auto &p : points){
         string key = to_string(p.x) +","+ to_string(p.y);
         index_map[key] = index;
         index++;
     }
-    srcMesh.clearTexCoords();
-    vector<ofVec3f> srcVertices = srcMesh.getVertices();
-    for(const auto &v : srcVertices){
+
+    //--- reset Good TexCoord to face
+    ofVboMesh facemesh = face.getLandmarks().getImageMesh();
+    facemesh.clearTexCoords();
+    for(const auto &v : facemesh.getVertices()){
         string key = to_string(v.x) +","+ to_string(v.y);
-        srcMesh.addTexCoord(srcPointsCoord[index_map[key]]);
+        facemesh.addTexCoord(srcPointsCoord[index_map[key]]);
     }
-    cout<<"=== set Face ! ==="<<endl;
-    return 1;
+
+    return facemesh;
 }

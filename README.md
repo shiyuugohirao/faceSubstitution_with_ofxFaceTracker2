@@ -8,7 +8,7 @@ ofxFaceTracker2
 
 --
 
-test on xcode9.2 / oF0.9.8
+test on xcode10.1 / oF0.10.1
 
 --
 
